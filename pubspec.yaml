@@ -10,6 +10,19 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # HTTP library for making API requests
+  http: ^1.1.0
+
+  # Library to parse RSS feeds
+  webfeed: ^0.7.0
+
+  # Timezone package to handle time conversions
+  timezone: ^0.9.0
+
+  # WebView package to display article content
+  webview_flutter: ^4.0.0
+
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
