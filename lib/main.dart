@@ -110,40 +110,63 @@ class FeedListPageState extends State<FeedListPage> {
     fetchFeeds();
   }
 
+  /// Helper method to parse pubDate safely
+  DateTime parsePubDate(dynamic pubDateRaw) {
+    try {
+      if (pubDateRaw is DateTime) {
+        return pubDateRaw; // Already a DateTime object
+      }
+      if (pubDateRaw is String) {
+        return DateTime.tryParse(pubDateRaw) ?? DateTime.now(); // Parse string
+      }
+    } catch (e) {
+      debugPrint("Error parsing pubDate: $pubDateRaw. Error: $e");
+    }
+    return DateTime.now(); // Fallback to current time
+  }
+
+  /// Fetch RSS feeds and handle deduplication
   Future<void> fetchFeeds() async {
     final userAgent =
         'Mozilla/5.0 (iPhone; CPU iPhone OS 10_3 like Mac OS X) AppleWebKit/602.1.50 (KHTML, like Gecko) Mobile/14E5239e';
+
+    final Set<String> articleIdentifiers = {};
 
     try {
       for (var feedCategory in rssFeeds.values) {
         for (var feedUrl in feedCategory.values) {
           try {
-            final response = await http
-                .get(Uri.parse(feedUrl), headers: {'User-Agent': userAgent});
+            final response = await http.get(
+              Uri.parse(feedUrl),
+              headers: {'User-Agent': userAgent},
+            );
             if (response.statusCode == 200) {
               final rssFeed = RssFeed.parse(response.body);
 
-              List<Map<String, dynamic>> newArticles =
-                  rssFeed.items!.map((item) {
-                final pubDate = item.pubDate != null
-                    ? (item.pubDate is DateTime
-                        ? item.pubDate as DateTime
-                        : DateTime.tryParse(item.pubDate.toString()) ??
-                            DateTime.now())
-                    : DateTime.now();
-                final estDate = formatToEST(pubDate);
+              List<Map<String, dynamic>> newArticles = [];
+              for (var item in rssFeed.items!) {
+                final identifier =
+                    '${item.title?.toLowerCase().trim()}_${item.pubDate ?? ''}';
 
-                return {
-                  'title': item.title ?? 'No title',
-                  'link': item.link ?? '',
-                  'pubDate': estDate.toString(),
-                };
-              }).toList();
+                if (!articleIdentifiers.contains(identifier)) {
+                  articleIdentifiers.add(identifier);
+
+                  // Use parsePubDate method
+                  final pubDate = parsePubDate(item.pubDate);
+
+                  final estDate = formatToEST(pubDate);
+
+                  newArticles.add({
+                    'title': item.title ?? 'No title',
+                    'link': item.link ?? '',
+                    'pubDate': estDate.toString(),
+                  });
+                }
+              }
 
               setState(() {
                 articles.addAll(newArticles);
-                articles.sort((a, b) =>
-                    b['pubDate'].compareTo(a['pubDate'])); // Sort by date
+                articles.sort((a, b) => b['pubDate'].compareTo(a['pubDate']));
               });
             }
           } catch (e) {
