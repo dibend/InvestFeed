@@ -4,22 +4,30 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:http/http.dart' as http;
 import 'package:webfeed/webfeed.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:intl/intl.dart';
 import 'dart:async';
 
+/// Entry point
 void main() {
   tz.initializeTimeZones();
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
+/// Main app uses a dark theme with orange highlights.
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'RSS Feeds',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
+      title: 'InvestFeed',
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: Colors.black,
+        primaryColor: Colors.deepOrange,
+        colorScheme: ColorScheme.fromSwatch().copyWith(
+          primary: Colors.deepOrange,
+          secondary: Colors.orange,
+        ),
       ),
       home: const FeedListPage(),
     );
@@ -34,14 +42,14 @@ class FeedListPage extends StatefulWidget {
 }
 
 class FeedListPageState extends State<FeedListPage> {
+  /// Combined RSS Feeds including The Compound, Ritholtz, Creative Planning, etc.
   final Map<String, Map<String, String>> rssFeeds = {
     "MarketWatch": {
       "Top Stories":
           "https://feeds.content.dowjones.io/public/rss/mw_topstories",
       "Real-Time Headlines":
           "https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines",
-      "Bulletins":
-          "https://feeds.marketwatch.com/marketwatch/bulletins", // HTTPS
+      "Bulletins": "https://feeds.marketwatch.com/marketwatch/bulletins",
       "Market Pulse":
           "https://feeds.content.dowjones.io/public/rss/mw_marketpulse",
       "Investing": "https://feeds.marketwatch.com/marketwatch/investing",
@@ -98,11 +106,28 @@ class FeedListPageState extends State<FeedListPage> {
     "Goldman Sachs": {
       "Insights": "https://www.goldmansachs.com/insights/rss/",
     },
+    // The Compound / Ritholtz Wealth
+    "Ritholtz/Compound": {
+      "Josh Brown (TRB)": "https://thereformedbroker.com/feed/",
+      "Michael Batnick": "https://theirrelevantinvestor.com/feed/",
+      "Ben Carlson": "https://awealthofcommonsense.com/feed/",
+      "RWM Blog": "https://ritholtzwealth.com/blog/feed/",
+      "Animal Spirits Podcast": "https://animalspiritspod.libsyn.com/rss",
+    },
+    // Creative Planning
+    "Creative Planning": {
+      "Main Feed": "https://creativeplanning.com/feed",
+    },
   };
 
-  List<Map<String, dynamic>> articles = [];
+  /// We'll store both the date object and the display date in each article, so we can sort by the date object.
+  List<Map<String, dynamic>> allArticles = [];
+  List<Map<String, dynamic>> filteredArticles = [];
+
   bool isLoading = true;
   String loadingMessage = "Fetching feeds...";
+
+  final TextEditingController searchController = TextEditingController();
 
   @override
   void initState() {
@@ -110,89 +135,124 @@ class FeedListPageState extends State<FeedListPage> {
     fetchFeeds();
   }
 
-  /// Helper method to parse pubDate safely
+  /// Safely parse RSS pubDate field into a DateTime
   DateTime parsePubDate(dynamic pubDateRaw) {
     try {
       if (pubDateRaw is DateTime) {
-        return pubDateRaw; // Already a DateTime object
+        return pubDateRaw;
+      } else if (pubDateRaw is String) {
+        return DateTime.tryParse(pubDateRaw) ?? DateTime.now();
       }
-      if (pubDateRaw is String) {
-        return DateTime.tryParse(pubDateRaw) ?? DateTime.now(); // Parse string
-      }
-    } catch (e) {
-      debugPrint("Error parsing pubDate: $pubDateRaw. Error: $e");
-    }
-    return DateTime.now(); // Fallback to current time
+    } catch (_) {}
+    return DateTime.now();
   }
 
-  /// Fetch RSS feeds and handle deduplication
+  /// Convert given DateTime to EST and then format it with intl's DateFormat
+  String formatPubDateEST(DateTime dateTime) {
+    final est = tz.getLocation('America/New_York');
+    final estDateTime = tz.TZDateTime.from(dateTime, est);
+    final df = DateFormat("EEE, MMM d, yyyy - h:mm a 'ET'");
+    return df.format(estDateTime);
+  }
+
   Future<void> fetchFeeds() async {
     final userAgent =
         'Mozilla/5.0 (iPhone; CPU iPhone OS 10_3 like Mac OS X) AppleWebKit/602.1.50 (KHTML, like Gecko) Mobile/14E5239e';
-
     final Set<String> articleIdentifiers = {};
+
+    final List<Map<String, dynamic>> fetchedArticles = [];
 
     try {
       for (var feedCategory in rssFeeds.values) {
         for (var feedUrl in feedCategory.values) {
           try {
-            final response = await http.get(
-              Uri.parse(feedUrl),
-              headers: {'User-Agent': userAgent},
-            );
+            final response = await http
+                .get(Uri.parse(feedUrl), headers: {'User-Agent': userAgent});
             if (response.statusCode == 200) {
               final rssFeed = RssFeed.parse(response.body);
-
-              List<Map<String, dynamic>> newArticles = [];
-              for (var item in rssFeed.items!) {
+              for (var item in rssFeed.items ?? []) {
                 final identifier =
                     '${item.title?.toLowerCase().trim()}_${item.pubDate ?? ''}';
-
                 if (!articleIdentifiers.contains(identifier)) {
                   articleIdentifiers.add(identifier);
 
-                  // Use parsePubDate method
-                  final pubDate = parsePubDate(item.pubDate);
+                  final parsedDate = parsePubDate(item.pubDate);
+                  final displayDateString = formatPubDateEST(parsedDate);
 
-                  final estDate = formatToEST(pubDate);
-
-                  newArticles.add({
+                  fetchedArticles.add({
                     'title': item.title ?? 'No title',
                     'link': item.link ?? '',
-                    'pubDate': estDate.toString(),
+                    'rawDate': parsedDate, // store for sorting
+                    'pubDate': displayDateString, // store for display
                   });
                 }
               }
-
-              setState(() {
-                articles.addAll(newArticles);
-                articles.sort((a, b) => b['pubDate'].compareTo(a['pubDate']));
-              });
+            } else {
+              // Non-200 response, skip
             }
           } catch (e) {
-            debugPrint("Error fetching/parsing feed: $feedUrl. Error: $e");
+            // Parsing or fetch error, skip
           }
         }
       }
     } catch (e) {
-      debugPrint("Error fetching feeds: $e");
-    } finally {
-      setState(() {
-        isLoading = false;
-      });
+      // Global fetch error, skip
     }
+
+    // Now sort final list by descending rawDate
+    fetchedArticles.sort((a, b) {
+      final dateA = a['rawDate'] as DateTime;
+      final dateB = b['rawDate'] as DateTime;
+      return dateB.compareTo(dateA);
+    });
+
+    setState(() {
+      allArticles = fetchedArticles;
+      filteredArticles = fetchedArticles;
+      isLoading = false;
+    });
   }
 
-  DateTime formatToEST(DateTime dateTime) {
-    final est = tz.getLocation('America/New_York');
-    return tz.TZDateTime.from(dateTime, est);
+  /// Filter method for search bar
+  void filterSearchResults(String query) {
+    setState(() {
+      final lowerQuery = query.toLowerCase();
+      filteredArticles = allArticles.where((article) {
+        final title = article['title'].toString().toLowerCase();
+        return title.contains(lowerQuery);
+      }).toList();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Investment News Feeds'),
+        title: const Text('InvestFeed'),
+        actions: [
+          // Add search bar on top
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: SizedBox(
+              width: 200,
+              child: TextField(
+                controller: searchController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Search...',
+                  hintStyle: const TextStyle(color: Colors.white70),
+                  filled: true,
+                  fillColor: Colors.black45,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                onChanged: filterSearchResults,
+              ),
+            ),
+          ),
+        ],
       ),
       body: isLoading
           ? Center(
@@ -201,28 +261,48 @@ class FeedListPageState extends State<FeedListPage> {
                 children: [
                   const CircularProgressIndicator(),
                   const SizedBox(height: 20),
-                  Text(loadingMessage),
+                  Text(loadingMessage,
+                      style: const TextStyle(color: Colors.white)),
                 ],
               ),
             )
           : RefreshIndicator(
               onRefresh: fetchFeeds,
               child: ListView.builder(
-                itemCount: articles.length,
+                itemCount: filteredArticles.length,
                 itemBuilder: (context, index) {
-                  final article = articles[index];
-                  return ListTile(
-                    title: Text(article['title']!),
-                    subtitle: Text(article['pubDate']),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              WebViewScreen(url: article['link']!),
-                        ),
-                      );
-                    },
+                  final article = filteredArticles[index];
+                  // We'll alternate row colors for a subtle style.
+                  // Now we want even index => orange bg, black text
+                  // odd index => black bg, white text
+                  final isEven = index % 2 == 0;
+                  final bgColor = isEven ? Colors.orange : Colors.black;
+                  final textColor = isEven ? Colors.black : Colors.white;
+
+                  return Container(
+                    color: bgColor,
+                    child: ListTile(
+                      title: Text(
+                        article['title'],
+                        style: TextStyle(
+                            color: textColor, fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        article['pubDate'],
+                        style: TextStyle(color: textColor),
+                      ),
+                      onTap: () {
+                        final link = article['link'];
+                        if (link.isNotEmpty) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => WebViewScreen(url: link),
+                            ),
+                          );
+                        }
+                      },
+                    ),
                   );
                 },
               ),
@@ -231,9 +311,9 @@ class FeedListPageState extends State<FeedListPage> {
   }
 }
 
+/// A simple in-app WebView screen.
 class WebViewScreen extends StatefulWidget {
   final String url;
-
   const WebViewScreen({Key? key, required this.url}) : super(key: key);
 
   @override
@@ -256,6 +336,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Article'),
+        backgroundColor: Colors.deepOrange,
       ),
       body: WebViewWidget(controller: controller),
     );
