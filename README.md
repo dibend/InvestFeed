@@ -38,9 +38,7 @@ Welcome to **InvestFeed** – an all-in-one RSS aggregator for top finance news 
 - If an article link won’t open, force-refresh or update to the newest release.
 - Make sure your device allows installations from unknown sources if you can’t install the APK.
 - For issues and bug reports, check our [Issues](https://github.com/YourOrg/InvestFeed/issues) page.
-
-![Troubleshooting](https://media.giphy.com/media/3o7aCXYna6QQxP6EXW/giphy.gif)
-
+- 
 ---
 
 ### Enjoy quick, convenient coverage of the day’s key market headlines with **InvestFeed**!
