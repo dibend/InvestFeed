@@ -43,6 +43,9 @@ class FeedListPage extends StatefulWidget {
 
 class FeedListPageState extends State<FeedListPage> {
   /// Combined RSS Feeds including The Compound, Ritholtz, Creative Planning, etc.
+  /// The Animal Spirits feed from Megaphone is the one with "EP.n" titles.
+  /// The RWM Blog is removed/commented out to avoid invalid link errors.
+
   final Map<String, Map<String, String>> rssFeeds = {
     "MarketWatch": {
       "Top Stories":
@@ -109,10 +112,13 @@ class FeedListPageState extends State<FeedListPage> {
     // The Compound / Ritholtz Wealth
     "Ritholtz/Compound": {
       "Josh Brown (TRB)": "https://thereformedbroker.com/feed/",
-      "Michael Batnick": "https://theirrelevantinvestor.com/feed/",
+      // Michael's actual feed changed to the new Beehiiv link:
+      "Michael Batnick": "https://rss.beehiiv.com/feeds/BJES4OT2HF.xml",
       "Ben Carlson": "https://awealthofcommonsense.com/feed/",
-      "RWM Blog": "https://ritholtzwealth.com/blog/feed/",
-      "Animal Spirits Podcast": "https://animalspiritspod.libsyn.com/rss",
+      // Removing the old RWM feed entirely:
+      // "RWM Blog": "someBadLink",
+      // Animal Spirits from Megaphone, with "EP. n" in titles
+      "Animal Spirits Podcast": "https://feeds.megaphone.fm/TCP6464651487",
     },
     // Creative Planning
     "Creative Planning": {
@@ -155,11 +161,31 @@ class FeedListPageState extends State<FeedListPage> {
     return df.format(estDateTime);
   }
 
+  /// Attempt to find a fallback link from guid or enclosure if item.link is empty
+  String getBestLink(RssItem item) {
+    // Trim link
+    final link = item.link?.trim() ?? '';
+
+    if (link.isNotEmpty) {
+      return link;
+    }
+    // If link is empty, try enclosure
+    if (item.enclosure?.url != null && item.enclosure!.url!.isNotEmpty) {
+      return item.enclosure!.url!.trim();
+    }
+    // If still empty, try guid
+    if (item.guid != null && item.guid!.isNotEmpty) {
+      return item.guid!.trim();
+    }
+
+    return '';
+  }
+
   Future<void> fetchFeeds() async {
     final userAgent =
         'Mozilla/5.0 (iPhone; CPU iPhone OS 10_3 like Mac OS X) AppleWebKit/602.1.50 (KHTML, like Gecko) Mobile/14E5239e';
-    final Set<String> articleIdentifiers = {};
 
+    final Set<String> articleIdentifiers = {};
     final List<Map<String, dynamic>> fetchedArticles = [];
 
     try {
@@ -173,33 +199,37 @@ class FeedListPageState extends State<FeedListPage> {
               for (var item in rssFeed.items ?? []) {
                 final identifier =
                     '${item.title?.toLowerCase().trim()}_${item.pubDate ?? ''}';
+
                 if (!articleIdentifiers.contains(identifier)) {
                   articleIdentifiers.add(identifier);
 
                   final parsedDate = parsePubDate(item.pubDate);
                   final displayDateString = formatPubDateEST(parsedDate);
 
+                  // new function to get fallback link from link/guid/enclosure
+                  final finalLink = getBestLink(item);
+
                   fetchedArticles.add({
                     'title': item.title ?? 'No title',
-                    'link': item.link ?? '',
+                    'link': finalLink,
                     'rawDate': parsedDate, // store for sorting
                     'pubDate': displayDateString, // store for display
                   });
                 }
               }
             } else {
-              // Non-200 response, skip
+              // skip
             }
           } catch (e) {
-            // Parsing or fetch error, skip
+            // skip
           }
         }
       }
     } catch (e) {
-      // Global fetch error, skip
+      // skip
     }
 
-    // Now sort final list by descending rawDate
+    // Sort final list by descending rawDate
     fetchedArticles.sort((a, b) {
       final dateA = a['rawDate'] as DateTime;
       final dateB = b['rawDate'] as DateTime;
@@ -258,11 +288,10 @@ class FeedListPageState extends State<FeedListPage> {
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 20),
-                  Text(loadingMessage,
-                      style: const TextStyle(color: Colors.white)),
+                children: const [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 20),
+                  Text('Fetching feeds...'),
                 ],
               ),
             )
@@ -273,8 +302,8 @@ class FeedListPageState extends State<FeedListPage> {
                 itemBuilder: (context, index) {
                   final article = filteredArticles[index];
                   // We'll alternate row colors for a subtle style.
-                  // Now we want even index => orange bg, black text
-                  // odd index => black bg, white text
+                  // Even index => orange bg, black text
+                  // Odd index => black bg, white text
                   final isEven = index % 2 == 0;
                   final bgColor = isEven ? Colors.orange : Colors.black;
                   final textColor = isEven ? Colors.black : Colors.white;
@@ -285,7 +314,9 @@ class FeedListPageState extends State<FeedListPage> {
                       title: Text(
                         article['title'],
                         style: TextStyle(
-                            color: textColor, fontWeight: FontWeight.bold),
+                          color: textColor,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       subtitle: Text(
                         article['pubDate'],
@@ -328,6 +359,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
     super.initState();
     controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setUserAgent(
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36")
       ..loadRequest(Uri.parse(widget.url));
   }
 
