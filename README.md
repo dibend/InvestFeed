@@ -1,7 +1,4 @@
 # InvestFeed
-
-![InvestFeed Logo](https://media.giphy.com/media/Y1Zr4lDhE8I2c/giphy.gif)
-
 Welcome to **InvestFeed** – an all-in-one RSS aggregator for top finance news & insights. Quickly search articles, then tap to view them in-app!
 
 ---
