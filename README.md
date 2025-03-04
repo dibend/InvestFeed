@@ -20,9 +20,7 @@ Welcome to **InvestFeed** – an all-in-one RSS aggregator for top finance news 
 - **Pull to Refresh**: Swipe down on the article list to grab the latest headlines.
 - **Search**: Type into the search bar (top-right) to filter articles by title.
 - **Tap an Article**: Loads the content in a built-in WebView so you don’t leave the app.
-
-![Usage Demo](https://media.giphy.com/media/j5i3IBBbI4hMk/giphy.gif)
-
+- 
 ---
 
 ## Features
