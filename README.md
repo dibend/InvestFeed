@@ -5,7 +5,7 @@ Welcome to **InvestFeed** – an all-in-one RSS aggregator for top finance news 
 
 ## Install on Android
 
-1. **Download the APK** from our [Releases Page](https://github.com/YourOrg/InvestFeed/releases).
+1. **Download the APK** from our [Releases Page](https://github.com/dibend/InvestFeed/releases).
 2. **Transfer the APK** to your phone, or download it directly onto the device.
 3. Open the APK and allow “Install from unknown sources” if prompted.
 4. Tap **Install**, then **Open** once it completes.
