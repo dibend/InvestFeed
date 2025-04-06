@@ -1,19 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:timezone/data/latest.dart' as tz;
-import 'package:timezone/timezone.dart' as tz;
 import 'package:http/http.dart' as http;
 import 'package:webfeed/webfeed.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 
-/// Entry point
 void main() {
-  tz.initializeTimeZones();
   runApp(const MyApp());
 }
 
-/// Main app uses a dark theme with orange highlights.
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -42,10 +37,6 @@ class FeedListPage extends StatefulWidget {
 }
 
 class FeedListPageState extends State<FeedListPage> {
-  /// Combined RSS Feeds including The Compound, Ritholtz, Creative Planning, etc.
-  /// The Animal Spirits feed from Megaphone is the one with "EP.n" titles.
-  /// The RWM Blog is removed/commented out to avoid invalid link errors.
-
   final Map<String, Map<String, String>> rssFeeds = {
     "MarketWatch": {
       "Top Stories":
@@ -55,46 +46,22 @@ class FeedListPageState extends State<FeedListPage> {
       "Bulletins": "https://feeds.marketwatch.com/marketwatch/bulletins",
       "Market Pulse":
           "https://feeds.content.dowjones.io/public/rss/mw_marketpulse",
-      "Investing": "https://feeds.marketwatch.com/marketwatch/investing",
-      "Mutual Funds": "https://feeds.marketwatch.com/marketwatch/mutualfunds",
-      "ETFs": "https://feeds.marketwatch.com/marketwatch/etfs",
-      "Retirement": "https://feeds.marketwatch.com/marketwatch/retirement",
     },
     "Nasdaq": {
       "Original": "https://www.nasdaq.com/feed/nasdaq-original/rss.xml",
-      "Commodities":
-          "https://www.nasdaq.com/feed/rssoutbound?category=Commodities",
       "Cryptocurrencies":
           "https://www.nasdaq.com/feed/rssoutbound?category=Cryptocurrencies",
-      "Dividends": "https://www.nasdaq.com/feed/rssoutbound?category=Dividends",
-      "Earnings": "https://www.nasdaq.com/feed/rssoutbound?category=Earnings",
-      "ETFs": "https://www.nasdaq.com/feed/rssoutbound?category=ETFs",
-      "IPOs": "https://www.nasdaq.com/feed/rssoutbound?category=IPOs",
       "Markets": "https://www.nasdaq.com/feed/rssoutbound?category=Markets",
-      "Options": "https://www.nasdaq.com/feed/rssoutbound?category=Options",
-      "Stocks": "https://www.nasdaq.com/feed/rssoutbound?category=Stocks",
     },
     "CNBC": {
       "Top News": "https://www.cnbc.com/id/100003114/device/rss",
-      "World News": "https://www.cnbc.com/id/100727362/device/rss",
-      "Business News": "https://www.cnbc.com/id/10001147/device/rss",
-      "Earnings": "https://www.cnbc.com/id/15839135/device/rss",
       "Investing": "https://www.cnbc.com/id/15839069/device/rss",
-      "Economy": "https://www.cnbc.com/id/20910258/device/rss",
       "Finance": "https://www.cnbc.com/id/15839263/device/rss",
-      "Health Care": "https://www.cnbc.com/id/10000108/device/rss",
-      "Real Estate": "https://www.cnbc.com/id/10000115/device/rss",
-      "Technology": "https://www.cnbc.com/id/10001045/device/rss",
-      "Small Business": "https://www.cnbc.com/id/10000113/device/rss",
-      "Personal Finance": "https://www.cnbc.com/id/10000520/device/rss",
-      "Breaking News": "https://www.cnbc.com/id/15839135/device/rss",
-      "Stock Market Data": "https://www.cnbc.com/id/15839069/device/rss",
     },
     "Bloomberg": {
       "Markets": "https://feeds.bloomberg.com/markets/news.rss",
-      "Politics": "https://feeds.bloomberg.com/politics/news.rss",
+      "Crypto": "https://feeds.bloomberg.com/crypto/news.rss",
       "Technology": "https://feeds.bloomberg.com/technology/news.rss",
-      "Wealth": "https://feeds.bloomberg.com/wealth/news.rss",
     },
     "Yahoo Finance": {
       "Top News": "https://finance.yahoo.com/news/rss",
@@ -109,30 +76,51 @@ class FeedListPageState extends State<FeedListPage> {
     "Goldman Sachs": {
       "Insights": "https://www.goldmansachs.com/insights/rss/",
     },
-    // The Compound / Ritholtz Wealth
     "Ritholtz/Compound": {
       "Josh Brown (TRB)": "https://thereformedbroker.com/feed/",
-      // Michael's actual feed changed to the new Beehiiv link:
-      "Michael Batnick": "https://rss.beehiiv.com/feeds/BJES4OT2HF.xml",
-      "Ben Carlson": "https://awealthofcommonsense.com/feed/",
-      // Removing the old RWM feed entirely:
-      // "RWM Blog": "someBadLink",
-      // Animal Spirits from Megaphone, with "EP. n" in titles
-      "Animal Spirits Podcast": "https://feeds.megaphone.fm/TCP6464651487",
+      "RWM Blog": "https://ritholtz.com/feed/",
     },
-    // Creative Planning
-    "Creative Planning": {
-      "Main Feed": "https://creativeplanning.com/feed",
+    "CoinDesk": {
+      "Latest News": "https://www.coindesk.com/arc/outboundfeeds/rss/",
+      "Markets":
+          "https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml&tag=markets",
+    },
+    "CoinTelegraph": {
+      "Latest News": "https://cointelegraph.com/rss",
+      "Blockchain": "https://cointelegraph.com/tags/blockchain/rss",
+    },
+    "The Block": {
+      "News": "https://www.theblock.co/feed/rss",
+    },
+    "Decrypt": {
+      "News": "https://decrypt.co/feed",
+    },
+    "Bankless": {
+      "Articles": "https://www.bankless.com/feed",
+    },
+    "Messari": {
+      "Research": "https://messari.io/feed",
+    },
+    "Reuters": {
+      "Markets":
+          "https://www.reuters.com/arc/outboundfeeds/rss/?outputType=xml&category=markets",
+      "Business":
+          "https://www.reuters.com/arc/outboundfeeds/rss/?outputType=xml&category=business",
+    },
+    "Financial Times": {
+      "Markets": "https://www.ft.com/markets?format=rss",
+      "Companies": "https://www.ft.com/companies?format=rss",
+    },
+    "The Economist": {
+      "Finance & Economics":
+          "https://www.economist.com/finance-and-economics/rss.xml",
     },
   };
 
-  /// We'll store both the date object and the display date in each article, so we can sort by the date object.
   List<Map<String, dynamic>> allArticles = [];
   List<Map<String, dynamic>> filteredArticles = [];
 
   bool isLoading = true;
-  String loadingMessage = "Fetching feeds...";
-
   final TextEditingController searchController = TextEditingController();
 
   @override
@@ -141,43 +129,118 @@ class FeedListPageState extends State<FeedListPage> {
     fetchFeeds();
   }
 
-  /// Safely parse RSS pubDate field into a DateTime
   DateTime parsePubDate(dynamic pubDateRaw) {
-    try {
-      if (pubDateRaw is DateTime) {
-        return pubDateRaw;
-      } else if (pubDateRaw is String) {
-        return DateTime.tryParse(pubDateRaw) ?? DateTime.now();
-      }
-    } catch (_) {}
-    return DateTime.now();
-  }
-
-  /// Convert given DateTime to EST and then format it with intl's DateFormat
-  String formatPubDateEST(DateTime dateTime) {
-    final est = tz.getLocation('America/New_York');
-    final estDateTime = tz.TZDateTime.from(dateTime, est);
-    final df = DateFormat("EEE, MMM d, yyyy - h:mm a 'ET'");
-    return df.format(estDateTime);
-  }
-
-  /// Attempt to find a fallback link from guid or enclosure if item.link is empty
-  String getBestLink(RssItem item) {
-    // Trim link
-    final link = item.link?.trim() ?? '';
-
-    if (link.isNotEmpty) {
-      return link;
+    if (pubDateRaw is! String || pubDateRaw.trim().isEmpty) {
+      final now = DateTime.now().toUtc();
+      print('Empty/invalid pubDate, using: $now');
+      return now;
     }
-    // If link is empty, try enclosure
+
+    String pubDate = pubDateRaw.trim();
+    print('Parsing pubDate: "$pubDate"');
+
+    // Regex for RFC 822: "Sun, 06 Apr 2025 16:00:00 +0000" or "-0400"
+    final rfc822Pattern = RegExp(
+        r'^\w{3}, (\d{2}) (\w{3}) (\d{4}) (\d{2}):(\d{2}):(\d{2}) ([+-]\d{4})$');
+    if (rfc822Pattern.hasMatch(pubDate)) {
+      final match = rfc822Pattern.firstMatch(pubDate)!;
+      final day = int.parse(match.group(1)!);
+      final monthStr = match.group(2)!;
+      final year = int.parse(match.group(3)!);
+      final hour = int.parse(match.group(4)!);
+      final minute = int.parse(match.group(5)!);
+      final second = int.parse(match.group(6)!);
+      final offset = match.group(7)!;
+
+      const months = {
+        'Jan': 1,
+        'Feb': 2,
+        'Mar': 3,
+        'Apr': 4,
+        'May': 5,
+        'Jun': 6,
+        'Jul': 7,
+        'Aug': 8,
+        'Sep': 9,
+        'Oct': 10,
+        'Nov': 11,
+        'Dec': 12
+      };
+      final month = months[monthStr]!;
+
+      // Create local time first
+      final localDate = DateTime(year, month, day, hour, minute, second);
+
+      // Parse offset
+      final offsetHours = int.parse(offset.substring(1, 3));
+      final offsetMinutes = int.parse(offset.substring(3));
+      final offsetDuration =
+          Duration(hours: offsetHours, minutes: offsetMinutes);
+      final offsetSign =
+          offset.startsWith('+') ? -1 : 1; // + means ahead of UTC, so subtract
+
+      // Adjust to UTC
+      final utcDate = localDate
+          .add(Duration(seconds: offsetSign * offsetDuration.inSeconds));
+      print('Parsed RFC 822: $utcDate');
+      return utcDate.toUtc();
+    }
+
+    // Regex for ISO 8601: "2025-04-06T16:00:00+00:00" or "2025-04-06 16:00:00Z"
+    final iso8601Pattern = RegExp(
+        r'^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(Z|[+-]\d{2}:?\d{2})$');
+    if (iso8601Pattern.hasMatch(pubDate)) {
+      final match = iso8601Pattern.firstMatch(pubDate)!;
+      final year = int.parse(match.group(1)!);
+      final month = int.parse(match.group(2)!);
+      final day = int.parse(match.group(3)!);
+      final hour = int.parse(match.group(4)!);
+      final minute = int.parse(match.group(5)!);
+      final second = int.parse(match.group(6)!);
+      final offsetOrZ = match.group(7)!;
+
+      // Create local time first
+      final localDate = DateTime(year, month, day, hour, minute, second);
+
+      if (offsetOrZ == 'Z') {
+        print('Parsed ISO 8601 (Z): $localDate');
+        return localDate.toUtc();
+      } else {
+        final offsetHours = int.parse(offsetOrZ.substring(1, 3));
+        final offsetMinutes =
+            offsetOrZ.length > 3 ? int.parse(offsetOrZ.substring(4)) : 0;
+        final offsetDuration =
+            Duration(hours: offsetHours, minutes: offsetMinutes);
+        final offsetSign = offsetOrZ.startsWith('+')
+            ? -1
+            : 1; // + means ahead of UTC, so subtract
+
+        // Adjust to UTC
+        final utcDate = localDate
+            .add(Duration(seconds: offsetSign * offsetDuration.inSeconds));
+        print('Parsed ISO 8601: $utcDate');
+        return utcDate.toUtc();
+      }
+    }
+
+    // Fallback
+    final now = DateTime.now().toUtc();
+    print('No regex match, using: $now');
+    return now;
+  }
+
+  String formatPubDateUTC(DateTime utcDateTime) {
+    final df = DateFormat("EEE, MMM d, yyyy - HH:mm 'UTC'");
+    return df.format(utcDateTime);
+  }
+
+  String getBestLink(RssItem item) {
+    final link = item.link?.trim() ?? '';
+    if (link.isNotEmpty) return link;
     if (item.enclosure?.url != null && item.enclosure!.url!.isNotEmpty) {
       return item.enclosure!.url!.trim();
     }
-    // If still empty, try guid
-    if (item.guid != null && item.guid!.isNotEmpty) {
-      return item.guid!.trim();
-    }
-
+    if (item.guid != null && item.guid!.isNotEmpty) return item.guid!.trim();
     return '';
   }
 
@@ -188,9 +251,10 @@ class FeedListPageState extends State<FeedListPage> {
     final Set<String> articleIdentifiers = {};
     final List<Map<String, dynamic>> fetchedArticles = [];
 
-    try {
-      for (var feedCategory in rssFeeds.values) {
-        for (var feedUrl in feedCategory.values) {
+    final List<Future<void>> publisherFutures = [];
+    rssFeeds.forEach((publisher, feedMap) {
+      publisherFutures.add(() async {
+        for (var feedUrl in feedMap.values) {
           try {
             final response = await http
                 .get(Uri.parse(feedUrl), headers: {'User-Agent': userAgent});
@@ -199,37 +263,29 @@ class FeedListPageState extends State<FeedListPage> {
               for (var item in rssFeed.items ?? []) {
                 final identifier =
                     '${item.title?.toLowerCase().trim()}_${item.pubDate ?? ''}';
-
                 if (!articleIdentifiers.contains(identifier)) {
                   articleIdentifiers.add(identifier);
-
-                  final parsedDate = parsePubDate(item.pubDate);
-                  final displayDateString = formatPubDateEST(parsedDate);
-
-                  // new function to get fallback link from link/guid/enclosure
+                  final parsedDate =
+                      parsePubDate(item.pubDate?.toString() ?? '');
+                  final displayDateString = formatPubDateUTC(parsedDate);
                   final finalLink = getBestLink(item);
-
                   fetchedArticles.add({
                     'title': item.title ?? 'No title',
                     'link': finalLink,
-                    'rawDate': parsedDate, // store for sorting
-                    'pubDate': displayDateString, // store for display
+                    'rawDate': parsedDate,
+                    'pubDate': displayDateString,
                   });
                 }
               }
-            } else {
-              // skip
             }
           } catch (e) {
-            // skip
+            print('Error fetching feed $feedUrl: $e');
           }
         }
-      }
-    } catch (e) {
-      // skip
-    }
+      }());
+    });
+    await Future.wait(publisherFutures);
 
-    // Sort final list by descending rawDate
     fetchedArticles.sort((a, b) {
       final dateA = a['rawDate'] as DateTime;
       final dateB = b['rawDate'] as DateTime;
@@ -243,7 +299,6 @@ class FeedListPageState extends State<FeedListPage> {
     });
   }
 
-  /// Filter method for search bar
   void filterSearchResults(String query) {
     setState(() {
       final lowerQuery = query.toLowerCase();
@@ -260,7 +315,6 @@ class FeedListPageState extends State<FeedListPage> {
       appBar: AppBar(
         title: const Text('InvestFeed'),
         actions: [
-          // Add search bar on top
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: SizedBox(
@@ -301,13 +355,9 @@ class FeedListPageState extends State<FeedListPage> {
                 itemCount: filteredArticles.length,
                 itemBuilder: (context, index) {
                   final article = filteredArticles[index];
-                  // We'll alternate row colors for a subtle style.
-                  // Even index => orange bg, black text
-                  // Odd index => black bg, white text
                   final isEven = index % 2 == 0;
                   final bgColor = isEven ? Colors.orange : Colors.black;
                   final textColor = isEven ? Colors.black : Colors.white;
-
                   return Container(
                     color: bgColor,
                     child: ListTile(
@@ -342,7 +392,6 @@ class FeedListPageState extends State<FeedListPage> {
   }
 }
 
-/// A simple in-app WebView screen.
 class WebViewScreen extends StatefulWidget {
   final String url;
   const WebViewScreen({Key? key, required this.url}) : super(key: key);
