@@ -129,109 +129,9 @@ class FeedListPageState extends State<FeedListPage> {
     fetchFeeds();
   }
 
-  DateTime parsePubDate(dynamic pubDateRaw) {
-    if (pubDateRaw is! String || pubDateRaw.trim().isEmpty) {
-      final now = DateTime.now().toUtc();
-      print('Empty/invalid pubDate, using: $now');
-      return now;
-    }
-
-    String pubDate = pubDateRaw.trim();
-    print('Parsing pubDate: "$pubDate"');
-
-    // Regex for RFC 822: "Sun, 06 Apr 2025 16:00:00 +0000" or "-0400"
-    final rfc822Pattern = RegExp(
-        r'^\w{3}, (\d{2}) (\w{3}) (\d{4}) (\d{2}):(\d{2}):(\d{2}) ([+-]\d{4})$');
-    if (rfc822Pattern.hasMatch(pubDate)) {
-      final match = rfc822Pattern.firstMatch(pubDate)!;
-      final day = int.parse(match.group(1)!);
-      final monthStr = match.group(2)!;
-      final year = int.parse(match.group(3)!);
-      final hour = int.parse(match.group(4)!);
-      final minute = int.parse(match.group(5)!);
-      final second = int.parse(match.group(6)!);
-      final offset = match.group(7)!;
-
-      const months = {
-        'Jan': 1,
-        'Feb': 2,
-        'Mar': 3,
-        'Apr': 4,
-        'May': 5,
-        'Jun': 6,
-        'Jul': 7,
-        'Aug': 8,
-        'Sep': 9,
-        'Oct': 10,
-        'Nov': 11,
-        'Dec': 12
-      };
-      final month = months[monthStr]!;
-
-      // Create local time first
-      final localDate = DateTime(year, month, day, hour, minute, second);
-
-      // Parse offset
-      final offsetHours = int.parse(offset.substring(1, 3));
-      final offsetMinutes = int.parse(offset.substring(3));
-      final offsetDuration =
-          Duration(hours: offsetHours, minutes: offsetMinutes);
-      final offsetSign =
-          offset.startsWith('+') ? -1 : 1; // + means ahead of UTC, so subtract
-
-      // Adjust to UTC
-      final utcDate = localDate
-          .add(Duration(seconds: offsetSign * offsetDuration.inSeconds));
-      print('Parsed RFC 822: $utcDate');
-      return utcDate.toUtc();
-    }
-
-    // Regex for ISO 8601: "2025-04-06T16:00:00+00:00" or "2025-04-06 16:00:00Z"
-    final iso8601Pattern = RegExp(
-        r'^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(Z|[+-]\d{2}:?\d{2})$');
-    if (iso8601Pattern.hasMatch(pubDate)) {
-      final match = iso8601Pattern.firstMatch(pubDate)!;
-      final year = int.parse(match.group(1)!);
-      final month = int.parse(match.group(2)!);
-      final day = int.parse(match.group(3)!);
-      final hour = int.parse(match.group(4)!);
-      final minute = int.parse(match.group(5)!);
-      final second = int.parse(match.group(6)!);
-      final offsetOrZ = match.group(7)!;
-
-      // Create local time first
-      final localDate = DateTime(year, month, day, hour, minute, second);
-
-      if (offsetOrZ == 'Z') {
-        print('Parsed ISO 8601 (Z): $localDate');
-        return localDate.toUtc();
-      } else {
-        final offsetHours = int.parse(offsetOrZ.substring(1, 3));
-        final offsetMinutes =
-            offsetOrZ.length > 3 ? int.parse(offsetOrZ.substring(4)) : 0;
-        final offsetDuration =
-            Duration(hours: offsetHours, minutes: offsetMinutes);
-        final offsetSign = offsetOrZ.startsWith('+')
-            ? -1
-            : 1; // + means ahead of UTC, so subtract
-
-        // Adjust to UTC
-        final utcDate = localDate
-            .add(Duration(seconds: offsetSign * offsetDuration.inSeconds));
-        print('Parsed ISO 8601: $utcDate');
-        return utcDate.toUtc();
-      }
-    }
-
-    // Fallback
-    final now = DateTime.now().toUtc();
-    print('No regex match, using: $now');
-    return now;
-  }
-
   String formatPubDateUTC(DateTime utcDateTime) {
     final df = DateFormat("EEE, MMM d, yyyy - HH:mm 'UTC'");
-    return df.format(utcDateTime);
+    return df.format(utcDateTime.toUtc());
   }
 
   String getBestLink(RssItem item) {
@@ -250,6 +150,8 @@ class FeedListPageState extends State<FeedListPage> {
 
     final Set<String> articleIdentifiers = {};
     final List<Map<String, dynamic>> fetchedArticles = [];
+    // Establish a consistent "now" for this entire fetch operation
+    final DateTime currentFetchTimeUtc = DateTime.now().toUtc();
 
     final List<Future<void>> publisherFutures = [];
     rssFeeds.forEach((publisher, feedMap) {
@@ -262,24 +164,49 @@ class FeedListPageState extends State<FeedListPage> {
               final rssFeed = RssFeed.parse(response.body);
               for (var item in rssFeed.items ?? []) {
                 final identifier =
-                    '${item.title?.toLowerCase().trim()}_${item.pubDate ?? ''}';
+                    '${item.title?.toLowerCase().trim()}_${item.pubDate?.toIso8601String() ?? getBestLink(item)}'; // Made identifier slightly more robust
+
                 if (!articleIdentifiers.contains(identifier)) {
                   articleIdentifiers.add(identifier);
-                  final parsedDate =
-                      parsePubDate(item.pubDate?.toString() ?? '');
-                  final displayDateString = formatPubDateUTC(parsedDate);
+
+                  DateTime rawDateUtc;
+                  if (item.pubDate != null) {
+                    DateTime parsedDate = item.pubDate!.toUtc();
+
+                    // **Intelligent Validation: Check for future dates**
+                    if (parsedDate.isAfter(currentFetchTimeUtc)) {
+                      print(
+                          'Warning: Article "${item.title}" from $publisher has a future pubDate ($parsedDate). Capping to current fetch time ($currentFetchTimeUtc).');
+                      rawDateUtc = currentFetchTimeUtc;
+                    } else {
+                      rawDateUtc = parsedDate;
+                    }
+                  } else {
+                    // Fallback if webfeed couldn't parse pubDate or it's missing.
+                    print(
+                        'Info: item.pubDate is null for article "${item.title}" from $publisher. Defaulting to current fetch time ($currentFetchTimeUtc).');
+                    rawDateUtc = currentFetchTimeUtc;
+                  }
+
+                  final displayDateString = formatPubDateUTC(rawDateUtc);
                   final finalLink = getBestLink(item);
+
                   fetchedArticles.add({
                     'title': item.title ?? 'No title',
                     'link': finalLink,
-                    'rawDate': parsedDate,
+                    'rawDate': rawDateUtc,
                     'pubDate': displayDateString,
+                    'source': publisher // Optional: to help trace issues
                   });
                 }
               }
+            } else {
+              print(
+                  'Failed to fetch feed $feedUrl (Publisher: $publisher): HTTP ${response.statusCode}');
             }
           } catch (e) {
-            print('Error fetching feed $feedUrl: $e');
+            print(
+                'Error fetching/parsing feed $feedUrl (Publisher: $publisher): $e');
           }
         }
       }());
@@ -292,11 +219,13 @@ class FeedListPageState extends State<FeedListPage> {
       return dateB.compareTo(dateA);
     });
 
-    setState(() {
-      allArticles = fetchedArticles;
-      filteredArticles = fetchedArticles;
-      isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        allArticles = fetchedArticles;
+        filteredArticles = fetchedArticles;
+        isLoading = false;
+      });
+    }
   }
 
   void filterSearchResults(String query) {
@@ -304,7 +233,8 @@ class FeedListPageState extends State<FeedListPage> {
       final lowerQuery = query.toLowerCase();
       filteredArticles = allArticles.where((article) {
         final title = article['title'].toString().toLowerCase();
-        return title.contains(lowerQuery);
+        // final source = article['source'].toString().toLowerCase(); // Optionally search by source
+        return title.contains(lowerQuery); // || source.contains(lowerQuery);
       }).toList();
     });
   }
@@ -345,7 +275,7 @@ class FeedListPageState extends State<FeedListPage> {
                 children: const [
                   CircularProgressIndicator(),
                   SizedBox(height: 20),
-                  Text('Fetching feeds...'),
+                  Text('Fetching feeds... This may take a moment.'),
                 ],
               ),
             )
@@ -356,8 +286,10 @@ class FeedListPageState extends State<FeedListPage> {
                 itemBuilder: (context, index) {
                   final article = filteredArticles[index];
                   final isEven = index % 2 == 0;
-                  final bgColor = isEven ? Colors.orange : Colors.black;
-                  final textColor = isEven ? Colors.black : Colors.white;
+                  final bgColor =
+                      isEven ? Colors.orange[700] : Colors.grey[900];
+                  final textColor = isEven ? Colors.white : Colors.orangeAccent;
+
                   return Container(
                     color: bgColor,
                     child: ListTile(
@@ -369,17 +301,23 @@ class FeedListPageState extends State<FeedListPage> {
                         ),
                       ),
                       subtitle: Text(
-                        article['pubDate'],
-                        style: TextStyle(color: textColor),
+                        "${article['pubDate']} - ${article['source'] ?? 'Unknown Source'}", // Display source
+                        style: TextStyle(color: textColor?.withOpacity(0.8)),
                       ),
                       onTap: () {
                         final link = article['link'];
-                        if (link.isNotEmpty) {
+                        if (link != null && link.isNotEmpty) {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => WebViewScreen(url: link),
                             ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text(
+                                    'No link available for this article.')),
                           );
                         }
                       },
@@ -410,6 +348,23 @@ class _WebViewScreenState extends State<WebViewScreen> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent(
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36")
+      ..setNavigationDelegate(NavigationDelegate(
+        onPageStarted: (String url) {
+          print('Page started loading: $url');
+        },
+        onPageFinished: (String url) {
+          print('Page finished loading: $url');
+        },
+        onWebResourceError: (WebResourceError error) {
+          print('''
+Page resource error:
+  code: ${error.errorCode}
+  description: ${error.description}
+  errorType: ${error.errorType}
+  isForMainFrame: ${error.isForMainFrame}
+          ''');
+        },
+      ))
       ..loadRequest(Uri.parse(widget.url));
   }
 
