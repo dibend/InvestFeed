@@ -1,19 +1,8 @@
 # InvestFeed
 
-A new Flutter project created with FlutLab - https://flutlab.io
+## To install Android App 
 
-## Getting Started
 
-A few resources to get you started if this is your first Flutter project:
+This app was created with Google's cross-platform app development framework, Flutter, in the language also by Google, Dart. In the EU if you are technical there are resources to get this running on iOS. For any developers who want to build off this it could also be ported to Windows, Mac, and Linux quite easily. 
 
-- https://flutter.dev/docs/get-started/codelab
-- https://flutter.dev/docs/cookbook
 
-For help getting started with Flutter, view our
-https://flutter.dev/docs, which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-
-## Getting Started: FlutLab - Flutter Online IDE
-
-- How to use FlutLab? Please, view our https://flutlab.io/docs
-- Join the discussion and conversation on https://flutlab.io/residents
