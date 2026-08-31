@@ -88,18 +88,12 @@ class FeedListPageState extends State<FeedListPage> {
     "CoinTelegraph": {
       "Latest News": "https://cointelegraph.com/rss",
       "Blockchain": "https://cointelegraph.com/tags/blockchain/rss",
-    },
-    "The Block": {
-      "News": "https://www.theblock.co/feed/rss",
-    },
+    ",},
     "Decrypt": {
       "News": "https://decrypt.co/feed",
     },
     "Bankless": {
       "Articles": "https://www.bankless.com/feed",
-    },
-    "Messari": {
-      "Research": "https://messari.io/feed",
     },
     "Reuters": {
       "Markets":
