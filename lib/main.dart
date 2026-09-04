@@ -88,7 +88,7 @@ class FeedListPageState extends State<FeedListPage> {
     "CoinTelegraph": {
       "Latest News": "https://cointelegraph.com/rss",
       "Blockchain": "https://cointelegraph.com/tags/blockchain/rss",
-    ",},
+    },
     "Decrypt": {
       "News": "https://decrypt.co/feed",
     },
@@ -115,12 +115,19 @@ class FeedListPageState extends State<FeedListPage> {
   List<Map<String, dynamic>> filteredArticles = [];
 
   bool isLoading = true;
+  String? loadError;
   final TextEditingController searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     fetchFeeds();
+  }
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
   }
 
   String formatPubDateUTC(DateTime utcDateTime) {
@@ -139,11 +146,19 @@ class FeedListPageState extends State<FeedListPage> {
   }
 
   Future<void> fetchFeeds() async {
+    if (mounted) {
+      setState(() {
+        isLoading = true;
+        loadError = null;
+      });
+    }
+
     final userAgent =
         'Mozilla/5.0 (iPhone; CPU iPhone OS 10_3 like Mac OS X) AppleWebKit/602.1.50 (KHTML, like Gecko) Mobile/14E5239e';
 
     final Set<String> articleIdentifiers = {};
     final List<Map<String, dynamic>> fetchedArticles = [];
+    var successfulFeeds = 0;
     // Establish a consistent "now" for this entire fetch operation
     final DateTime currentFetchTimeUtc = DateTime.now().toUtc();
 
@@ -153,9 +168,11 @@ class FeedListPageState extends State<FeedListPage> {
         for (var feedUrl in feedMap.values) {
           try {
             final response = await http
-                .get(Uri.parse(feedUrl), headers: {'User-Agent': userAgent});
+                .get(Uri.parse(feedUrl), headers: {'User-Agent': userAgent})
+                .timeout(const Duration(seconds: 15));
             if (response.statusCode == 200) {
               final rssFeed = RssFeed.parse(response.body);
+              successfulFeeds++;
               for (var item in rssFeed.items ?? []) {
                 final identifier =
                     '${item.title?.toLowerCase().trim()}_${item.pubDate?.toIso8601String() ?? getBestLink(item)}'; // Made identifier slightly more robust
@@ -216,21 +233,28 @@ class FeedListPageState extends State<FeedListPage> {
     if (mounted) {
       setState(() {
         allArticles = fetchedArticles;
-        filteredArticles = fetchedArticles;
+        filterArticles(searchController.text);
         isLoading = false;
+        if (successfulFeeds == 0) {
+          loadError = 'Unable to load news. Check your connection and try again.';
+        }
       });
     }
   }
 
   void filterSearchResults(String query) {
     setState(() {
-      final lowerQuery = query.toLowerCase();
-      filteredArticles = allArticles.where((article) {
-        final title = article['title'].toString().toLowerCase();
-        // final source = article['source'].toString().toLowerCase(); // Optionally search by source
-        return title.contains(lowerQuery); // || source.contains(lowerQuery);
-      }).toList();
+      filterArticles(query);
     });
+  }
+
+  void filterArticles(String query) {
+    final lowerQuery = query.trim().toLowerCase();
+    filteredArticles = allArticles.where((article) {
+      final title = article['title'].toString().toLowerCase();
+      final source = article['source'].toString().toLowerCase();
+      return title.contains(lowerQuery) || source.contains(lowerQuery);
+    }).toList();
   }
 
   @override
@@ -262,7 +286,7 @@ class FeedListPageState extends State<FeedListPage> {
           ),
         ],
       ),
-      body: isLoading
+      body: isLoading && allArticles.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -276,8 +300,24 @@ class FeedListPageState extends State<FeedListPage> {
           : RefreshIndicator(
               onRefresh: fetchFeeds,
               child: ListView.builder(
-                itemCount: filteredArticles.length,
+                physics: const AlwaysScrollableScrollPhysics(),
+                itemCount: filteredArticles.isEmpty ? 1 : filteredArticles.length,
                 itemBuilder: (context, index) {
+                  if (filteredArticles.isEmpty) {
+                    return SizedBox(
+                      height: MediaQuery.sizeOf(context).height * 0.7,
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            loadError ?? 'No articles match your search.',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
                   final article = filteredArticles[index];
                   final isEven = index % 2 == 0;
                   final bgColor =
